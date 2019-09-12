@@ -1,0 +1,16 @@
+[
+{
+  "modid": "recall",
+  "name": "Recall",
+  "description": "Recall to your bed or spawn",
+  "version": "${version}",
+  "mcversion": "${mcversion}",
+  "url": "",
+  "updateUrl": "",
+  "authorList": ["SeriousCreeper"],
+  "credits": "",
+  "logoFile": "",
+  "screenshots": [],
+  "dependencies": []
+}
+]
