@@ -1,28 +1,62 @@
 package com.seriouscreeper.recall.config;
 
 
+//import net.minecraftforge.common.config.Configuration;
+
+import com.electronwill.nightconfig.core.file.CommentedFileConfig;
+import com.electronwill.nightconfig.core.io.WritingMode;
 import com.seriouscreeper.recall.items.ItemRecall;
-import com.seriouscreeper.recall.proxy.CommonProxy;
-import net.minecraftforge.common.config.Configuration;
+import net.minecraftforge.common.ForgeConfigSpec;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.fml.common.Mod;
+import net.minecraftforge.fml.config.ModConfig;
 
+import java.nio.file.Path;
+
+@Mod.EventBusSubscriber
 public class Config {
-    public static boolean PlaySounds = true;
-    public static boolean EmitParticles = true;
-    //public static boolean AllowCrossDimension = true;
 
-    public static void readConfig() {
-        Configuration cfg = CommonProxy.config;
+    private static final ForgeConfigSpec.Builder COMMON_BUILDER = new ForgeConfigSpec.Builder();
+    private static final ForgeConfigSpec.Builder CLIENT_BUILDER = new ForgeConfigSpec.Builder();
 
-        try {
-            cfg.load();
-            ItemRecall.MaxDamage = cfg.getInt("durability", "General", 50, 1, Integer.MAX_VALUE, "Set max durability of item");
-            ItemRecall.MaxDuration = cfg.getInt("casttime", "General", 100, 1, Integer.MAX_VALUE, "How long it should take to use the item");
-            PlaySounds = cfg.getBoolean("soundsEnabled", "General", true, "Play sounds when using item");
-            EmitParticles = cfg.getBoolean("particlesEnabled", "General", true, "Emit particles when using item");
-        } catch(Exception e) {
-        } finally {
-            if(cfg.hasChanged())
-                cfg.save();
-        }
+    public static ForgeConfigSpec COMMON_CONFIG;
+    public static ForgeConfigSpec CLIENT_CONFIG;
+
+    public static ForgeConfigSpec.BooleanValue PlaySounds;
+    public static ForgeConfigSpec.BooleanValue EmitParticles;
+
+    static {
+        COMMON_BUILDER.comment("General settings").push("general");
+
+        PlaySounds = COMMON_BUILDER.comment("Play sounds when using item").define("soundsEnabled", true);
+        EmitParticles = COMMON_BUILDER.comment("Emit particles when using item").define("particlesEnabled", true);
+        ItemRecall.MaxDamage = COMMON_BUILDER.comment("Set max durability of item").defineInRange("durability", 50, 1, Integer.MAX_VALUE);
+        ItemRecall.MaxDuration = COMMON_BUILDER.comment("How long it should take to use the item").defineInRange("casttime", 100, 1, Integer.MAX_VALUE);
+
+        COMMON_BUILDER.pop();
+
+        COMMON_CONFIG = COMMON_BUILDER.build();
+        CLIENT_CONFIG = CLIENT_BUILDER.build();
+    }
+
+    public static void loadConfig(ForgeConfigSpec spec, Path path) {
+
+        final CommentedFileConfig configData = CommentedFileConfig.builder(path)
+                .sync()
+                .autosave()
+                .writingMode(WritingMode.REPLACE)
+                .build();
+
+        configData.load();
+        spec.setConfig(configData);
+    }
+
+    @SubscribeEvent
+        public static void onLoad(final ModConfig.Loading configEvent) {
+
+    }
+
+    @SubscribeEvent
+        public static void onReload(final ModConfig.ConfigReloading configEvent) {
     }
 }

@@ -1,17 +1,13 @@
 package com.seriouscreeper.recall.others;
 
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.player.EntityPlayer;
-import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.Teleporter;
-import net.minecraft.world.World;
-import net.minecraft.world.WorldServer;
+import net.minecraft.world.server.ServerWorld;
 
 public class CustomTeleporter extends Teleporter {
-    public CustomTeleporter(WorldServer worldIn) {
+    public CustomTeleporter(ServerWorld worldIn) {
         super(worldIn);
     }
-
+    /*
     @Override
     public void placeEntity(World world, Entity entity, float yaw)
     {
@@ -49,4 +45,6 @@ public class CustomTeleporter extends Teleporter {
     @Override
     public void placeInPortal(Entity pEntity, float rotationYaw) {
     }
+
+     */
 }
