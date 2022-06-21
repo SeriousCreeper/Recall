@@ -1,45 +1,39 @@
 package com.seriouscreeper.recall;
 
-import com.seriouscreeper.recall.proxy.CommonProxy;
-import net.minecraftforge.common.config.Configuration;
+import com.seriouscreeper.recall.config.Config;
+import com.seriouscreeper.recall.items.ItemRecall;
+import net.minecraft.world.item.Item;
+import net.minecraftforge.common.MinecraftForge;
+import net.minecraftforge.eventbus.api.IEventBus;
+import net.minecraftforge.fml.ModLoadingContext;
 import net.minecraftforge.fml.common.Mod;
-import net.minecraftforge.fml.common.Mod.EventHandler;
-import net.minecraftforge.fml.common.SidedProxy;
-import net.minecraftforge.fml.common.event.FMLInitializationEvent;
-import net.minecraftforge.fml.common.event.FMLPostInitializationEvent;
-import net.minecraftforge.fml.common.event.FMLPreInitializationEvent;
-import org.apache.logging.log4j.Logger;
+import net.minecraftforge.fml.config.ModConfig;
+import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
+import net.minecraftforge.fml.loading.FMLPaths;
+import net.minecraftforge.registries.DeferredRegister;
+import net.minecraftforge.registries.ForgeRegistries;
+import net.minecraftforge.registries.RegistryObject;
 
-@Mod(modid = Recall.MODID, name = Recall.NAME, version = Recall.VERSION)
+@Mod("recall")
 public class Recall
 {
     public static final String MODID = "recall";
-    public static final String NAME = "Recall";
-    public static final String VERSION = "1.0";
 
-    private static Logger logger;
+    public static final DeferredRegister<Item> ITEMS = DeferredRegister.create(ForgeRegistries.ITEMS, MODID);
 
-    @SidedProxy(clientSide = "com.seriouscreeper.recall.proxy.ClientProxy", serverSide = "com.seriouscreeper.recall.proxy.ServerProxy")
-    public static CommonProxy proxy;
+    public static final RegistryObject<Item> itemRecall = ITEMS.register("item_recall", ItemRecall::new);
 
-    @Mod.Instance
-    public static Recall instance;
 
-    @EventHandler
-    public void preInit(FMLPreInitializationEvent event)
-    {
-        logger = event.getModLog();
-        proxy.preInit(event);
-    }
+    public Recall() {
+        ModLoadingContext.get().registerConfig(ModConfig.Type.CLIENT, Config.CLIENT_CONFIG);
+        ModLoadingContext.get().registerConfig(ModConfig.Type.COMMON, Config.COMMON_CONFIG);
 
-    @EventHandler
-    public void init(FMLInitializationEvent event)
-    {
-        proxy.init(event);
-    }
+        Config.loadConfig(Config.CLIENT_CONFIG, FMLPaths.CONFIGDIR.get().resolve("recall-client.toml"));
+        Config.loadConfig(Config.COMMON_CONFIG, FMLPaths.CONFIGDIR.get().resolve("recall-common.toml"));
 
-    @Mod.EventHandler
-    public void postInit(FMLPostInitializationEvent event) {
-        proxy.postInit(event);
+        IEventBus modEventBus = FMLJavaModLoadingContext.get().getModEventBus();
+
+        ITEMS.register(modEventBus);
+        MinecraftForge.EVENT_BUS.register(this);
     }
 }

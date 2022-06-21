@@ -1,108 +1,113 @@
 package com.seriouscreeper.recall.items;
 
-import com.seriouscreeper.recall.Recall;
 import com.seriouscreeper.recall.config.Config;
-import net.minecraft.client.renderer.block.model.ModelResourceLocation;
-import net.minecraft.creativetab.CreativeTabs;
-import net.minecraft.entity.EntityLivingBase;
-import net.minecraft.entity.player.EntityPlayer;
-import net.minecraft.entity.player.EntityPlayerMP;
-import net.minecraft.init.SoundEvents;
-import net.minecraft.item.EnumAction;
-import net.minecraft.item.EnumRarity;
-import net.minecraft.item.Item;
-import net.minecraft.item.ItemStack;
-import net.minecraft.util.*;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.MathHelper;
-import net.minecraft.util.text.TextComponentTranslation;
-import net.minecraft.world.World;
-import net.minecraftforge.client.model.ModelLoader;
-import net.minecraftforge.fml.relauncher.Side;
-import net.minecraftforge.fml.relauncher.SideOnly;
+import net.minecraft.Util;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.particles.ParticleTypes;
+import net.minecraft.network.chat.contents.TranslatableContents;
+import net.minecraft.network.chat.contents.TranslatableFormatException;
+import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.sounds.SoundEvents;
+import net.minecraft.sounds.SoundSource;
+import net.minecraft.stats.Stats;
+import net.minecraft.util.RandomSource;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.InteractionResultHolder;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.*;
+import net.minecraft.world.level.Level;
+import net.minecraftforge.common.ForgeConfigSpec;
+import net.minecraftforge.common.util.LogicalSidedProvider;
+import net.minecraftforge.fml.LogicalSide;
+import net.minecraftforge.server.command.TextComponentHelper;
 
 import java.util.Random;
 
 public class ItemRecall extends Item {
-    public static int MaxDamage = 50;
-    public static int MaxDuration = 100;
+    public static ForgeConfigSpec.IntValue MaxDamage;
+    public static ForgeConfigSpec.IntValue MaxDuration;
 
     public ItemRecall() {
-        this.setCreativeTab(CreativeTabs.TOOLS);
-        this.setMaxDamage(MaxDamage);
-        this.setMaxStackSize(1);
-
-        setRegistryName("item_recall");
-        setUnlocalizedName(Recall.MODID + ".item_recall");
-    }
-
-    @SideOnly(Side.CLIENT)
-    public void initModel() {
-        ModelLoader.setCustomModelResourceLocation(this, 0, new ModelResourceLocation(getRegistryName(), "inventory"));
+        super(new Item.Properties()
+                .durability(MaxDamage.get())
+                .tab(CreativeModeTab.TAB_TOOLS)
+        );
     }
 
     @Override
-    public EnumRarity getRarity(ItemStack stack) {
-        return EnumRarity.RARE;
+    public boolean isValidRepairItem(ItemStack toRepair, ItemStack repair) {
+        return repair.getItem() == Items.DIAMOND || super.isValidRepairItem(toRepair, repair);
     }
 
     @Override
-    public boolean hasEffect(ItemStack stack) {
-        return true;
+    public int getEnchantmentValue() {
+        return 10;
     }
 
     @Override
-    public ActionResult<ItemStack> onItemRightClick(World world, EntityPlayer player, EnumHand hand) {
-        ItemStack stack = player.getHeldItem(hand);
-
-        if(stack.getItemDamage() < stack.getMaxDamage()) {
-            player.setActiveHand(hand);
-            return new ActionResult<ItemStack>(EnumActionResult.SUCCESS, stack);
-        }
-
-        return new ActionResult<ItemStack>(EnumActionResult.PASS, stack);
+    public Rarity getRarity(ItemStack stack) {
+        return Rarity.RARE;
     }
 
+
+
     @Override
-    public ItemStack onItemUseFinish(ItemStack stack, World worldIn, EntityLivingBase entity) {
-        if(!worldIn.isRemote && stack.getItemDamage() < stack.getMaxDamage()) {
-            EntityPlayer player = (EntityPlayer) entity;
-            BlockPos bedLocation = player.getBedLocation(player.dimension);
-            BlockPos returnPos = bedLocation;
+    public InteractionResultHolder<ItemStack> use(Level worldIn, Player playerIn, InteractionHand handIn) {
+        ItemStack stack = playerIn.getItemInHand(handIn);
+
+        playerIn.startUsingItem(handIn);
+        return InteractionResultHolder.consume(stack);
+    }
+
+
+    @Override
+    public ItemStack finishUsingItem(ItemStack stack, Level worldIn, LivingEntity entity) {
+        if(!worldIn.isClientSide) {
+            ServerPlayer player = (ServerPlayer) entity;
+            BlockPos bedLocation = player.getRespawnPosition(); // find bed in current dimension first
 
             if (bedLocation == null) {
-                ((EntityPlayerMP) entity).sendStatusMessage(new TextComponentTranslation("chat.recall.nobed"), true);
+                player.sendSystemMessage(TextComponentHelper.createComponentTranslation(player, "chat.recall.nobed"));
                 return stack;
             }
-/*
-            if(!Config.AllowCrossDimension && player.dimension != player.getSpawnDimension()) {
-                if(entity instanceof EntityPlayerMP) {
-                    ((EntityPlayerMP) entity).sendStatusMessage(new TextComponentTranslation("chat.recall.dimension"), true);
-                }
+
+            if(!Config.AllowCrossDimension.get() && player.level.dimension() != Level.OVERWORLD) {
+                player.sendSystemMessage(TextComponentHelper.createComponentTranslation(player, "chat.recall.dimension"));
+                //player.sendMessage(new TranslatableContents("chat.recall.dimension"), player.getUUID());
 
                 return stack;
             }
-*/
-            double distance = entity.getDistanceSq(returnPos);
 
-            if(Config.PlaySounds && distance > 24) {
-                worldIn.playSound(null, returnPos.getX(), returnPos.getY(), returnPos.getZ(), SoundEvents.ENTITY_LIGHTNING_THUNDER, SoundCategory.PLAYERS, 0.75F, 0.75F);
+            double distance = entity.distanceToSqr(bedLocation.getX(), bedLocation.getY(), bedLocation.getZ());
+
+            if(Config.PlaySounds.get() && distance > 24) {
+                worldIn.playSound(null, player.blockPosition().getX(), player.blockPosition().getY(), player.blockPosition().getZ(), SoundEvents.LIGHTNING_BOLT_THUNDER, SoundSource.PLAYERS, 0.75F, 0.75F);
             }
 
-            if(entity.isRiding())
-                entity.dismountRidingEntity();
+            entity.stopRiding();
 
-            //if(false && player.dimension != player.getSpawnDimension()) {
-            //   entity.changeDimension(player.getSpawnDimension(), new CustomTeleporter((WorldServer) worldIn));
-            //} else {
-                entity.setPositionAndUpdate(returnPos.getX(), returnPos.getY(), returnPos.getZ());
-                entity.fallDistance = 0;
-            //}
+            if(player.level.dimension() != player.getRespawnDimension()) {
+                LogicalSidedProvider.WORKQUEUE.get(LogicalSide.SERVER);
+                ServerLevel transferWorld = ((ServerLevel)worldIn).getServer().getLevel(player.getRespawnDimension());
 
-            stack.damageItem(1, entity);
+                player.teleportTo(transferWorld, bedLocation.getX() + 0.5D, bedLocation.getY() + 0.6D, bedLocation.getZ() + 0.5D, player.getRotationVector().x, player.getRotationVector().y);
+            } else {
+                entity.moveTo(bedLocation.getX() + 0.5D, bedLocation.getY() + 0.6D, bedLocation.getZ() + 0.5D);
+            }
 
-            if(Config.PlaySounds)
-                worldIn.playSound(null, returnPos.getX(), returnPos.getY(), returnPos.getZ(), SoundEvents.ENTITY_LIGHTNING_THUNDER, SoundCategory.PLAYERS, 0.75F, 0.75F);
+            entity.fallDistance = 0;
+
+            stack.hurtAndBreak(1, player, (p)-> {
+                p.broadcastBreakEvent(p.getUsedItemHand());
+            });
+
+            player.awardStat(Stats.ITEM_USED.get(this));
+
+            if(Config.PlaySounds.get())
+                worldIn.playSound(null, player.blockPosition().getX(), player.blockPosition().getY(), player.blockPosition().getZ(), SoundEvents.LIGHTNING_BOLT_THUNDER, SoundSource.PLAYERS, 0.75F, 0.75F);
         }
 
         return stack;
@@ -118,22 +123,26 @@ public class ItemRecall extends Item {
         super.setDamage(stack, damage);
     }
 
+    public static float clamp(float val, float min, float max) {
+        return Math.max(min, Math.min(max, val));
+    }
+
     @Override
-    public void onUsingTick(ItemStack stack, EntityLivingBase entity, int count) {
-        if(!entity.world.isRemote) {
-            if(Config.PlaySounds) {
+    public void onUsingTick(ItemStack stack, LivingEntity entity, int count) {
+        if(!entity.level.isClientSide) {
+            if(Config.PlaySounds.get()) {
                 if (entity.hurtTime > 0) {
-                    entity.stopActiveHand();
-                    entity.world.playSound(null, entity.posX, entity.posY, entity.posZ, SoundEvents.BLOCK_FIRE_EXTINGUISH, SoundCategory.PLAYERS, 1, 1);
+                    entity.stopUsingItem();
+                    entity.level.playSound(null, entity.position().x, entity.position().y, entity.position().z, SoundEvents.FIRE_EXTINGUISH, SoundSource.PLAYERS, 1, 1);
                 }
 
-                if (count < MaxDuration - 10 && count % 20 == 0) {
-                    entity.world.playSound(null, entity.posX, entity.posY, entity.posZ, SoundEvents.BLOCK_ENCHANTMENT_TABLE_USE, SoundCategory.PLAYERS, 0.05F + 0.4F * (float) MathHelper.clamp(80 - count, 1, 80) / 80.0F, 0.5F + (1 - (count / MaxDuration)));
+                if (count < MaxDuration.get() - 10 && count % 20 == 0) {
+                    entity.level.playSound(null, entity.position().x, entity.position().y, entity.position().z, SoundEvents.ENCHANTMENT_TABLE_USE, SoundSource.PLAYERS, 0.05F + 0.4F * (float) clamp(80 - count, 1, 80) / 80.0F, 0.5F + (1 - (count / MaxDuration.get())));
                 }
             }
         } else {
-            if(Config.EmitParticles) {
-                Random rand = entity.world.rand;
+            if(Config.EmitParticles.get()) {
+                RandomSource rand = entity.level.random;
 
             /*
             double angle = (1 - (count / 100D)) * 360D * 3D;
@@ -151,19 +160,21 @@ public class ItemRecall extends Item {
             */
 
                 for (int i = 0; i < 60; i++) {
-                    entity.world.spawnParticle(EnumParticleTypes.PORTAL, entity.posX + (rand.nextBoolean() ? -1 : 1) * Math.pow(rand.nextFloat(), 2) * 3, entity.posY + rand.nextFloat() * 4 - 2, entity.posZ + (rand.nextBoolean() ? -1 : 1) * Math.pow(rand.nextFloat(), 2) * 3, 0, 0.2D, 0);
+                    entity.level.addParticle(ParticleTypes.PORTAL, entity.blockPosition().getX() + (rand.nextBoolean() ? -1 : 1) * Math.pow(rand.nextFloat(), 2) * 3, entity.blockPosition().getY() + rand.nextFloat() * 4 - 2, entity.blockPosition().getZ() + (rand.nextBoolean() ? -1 : 1) * Math.pow(rand.nextFloat(), 2) * 3, 0, 0.2D, 0);
                 }
             }
         }
     }
 
-    @Override
-    public EnumAction getItemUseAction(ItemStack stack) {
-        return EnumAction.BOW;
-    }
 
     @Override
-    public int getMaxItemUseDuration(ItemStack stack) {
-        return MaxDuration;
+    public UseAnim getUseAnimation(ItemStack stack) {
+        return UseAnim.BOW;
+    }
+
+
+    @Override
+    public int getUseDuration(ItemStack stack) {
+        return MaxDuration.get();
     }
 }
